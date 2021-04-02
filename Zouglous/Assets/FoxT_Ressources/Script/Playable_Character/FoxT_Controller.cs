@@ -11,6 +11,7 @@ public class FoxT_Controller : MonoBehaviour
     private Animator anim;
 
     private Vector2 move;
+    private bool rightDirection, upDirection;
 
     [SerializeField]
     private LayerMask enemyLayer;
@@ -32,24 +33,24 @@ public class FoxT_Controller : MonoBehaviour
 
     [SerializeField]
     private int healthPoint;
-    private bool isDying;
-	private void Awake()
-	{
+    private bool isDying, isTakingDamage;
+    private void Awake()
+    {
         //Refere to the PC's rigidbody
         PCrb = this.GetComponent<Rigidbody2D>();
         anim = this.GetComponent<Animator>();
 
         healthPoint = stat.maxHealth;
         meleeAttackDamage = stat.meleeAttackDamage;
-	}
+    }
 
-	void Start()
+    void Start()
     {
         //Update HUD
 
     }
 
-    
+
     void Update()
     {
         if (isDying) return;
@@ -64,12 +65,21 @@ public class FoxT_Controller : MonoBehaviour
         //check Joystick value
         move = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
 
+
         //Attack Button
-        if (Input.GetButtonDown("Melee Attack")) 
+        if (Input.GetButtonDown("Melee Attack"))
         {
             MeleeAttackStart();
         }
 
+        //Test DIE
+        if (Input.GetKeyDown(KeyCode.Delete))
+        {
+            TakeDamage(1);
+        }
+
+        if (move == Vector2.zero || move.x == 0 || isAttackingMelee) return;
+        transform.localScale = new Vector3(1 * Mathf.Sign(Input.GetAxis("Horizontal")), transform.localScale.y, transform.localScale.z);
     }
 
     void MeleeAttackStart()
@@ -85,7 +95,7 @@ public class FoxT_Controller : MonoBehaviour
     {
         yield return new WaitForSeconds(meleeAttackDelay);
 
-        RaycastHit2D[] meleeAttack = Physics2D.BoxCastAll(this.transform.position + new Vector3(MeleeAttackColliderSize.x * lastDirection.x / 2, MeleeAttackColliderSize.y * lastDirection.y / 2) , MeleeAttackColliderSize, 0f, lastDirection, 1f, enemyLayer);
+        RaycastHit2D[] meleeAttack = Physics2D.BoxCastAll(this.transform.position + new Vector3(MeleeAttackColliderSize.x * lastDirection.x / 2, MeleeAttackColliderSize.y * lastDirection.y / 2), MeleeAttackColliderSize, 0f, lastDirection, 1f, enemyLayer);
 
         if (meleeAttack.Length != 0)
         {
@@ -96,6 +106,8 @@ public class FoxT_Controller : MonoBehaviour
 
     private IEnumerator MeleeAttackCoolDown()
     {
+        //Manage Animation
+        AnimationUpdate(6);
         yield return new WaitForSeconds(meleeAttackCoolDown);
         isAttackingMelee = false;
     }
@@ -106,14 +118,49 @@ public class FoxT_Controller : MonoBehaviour
         PCrb.velocity = move.normalized * speed * Time.deltaTime;
 
         //calculer moovement direction;
-        if (move.x > 0 && move.x > Mathf.Abs(move.y)) lastDirection = Vector2.right;
-        else if (move.x < 0 && move.x < Mathf.Abs(move.y) * -1) lastDirection = Vector2.left;
-        else if (move.y > 0 && move.y > Mathf.Abs(move.x)) lastDirection = Vector2.up;
-        else if (move.y < 0 && move.y < Mathf.Abs(move.x) * -1) lastDirection = Vector2.down;
+        if (move.x > 0)
+        {
+            rightDirection = true;
+            if (move.y > 0)
+            {
+                upDirection = true;
+            }
+            else if (move.y < 0)
+            {
+                upDirection = false;
+            }
+        }
+        else if (move.x < 0)
+        {
+            rightDirection = false;
+            if (move.y > 0)
+            {
+                upDirection = true;
+            }
+            else if (move.y < 0)
+            {
+                upDirection = false;
+            }
+        }
+        else
+        {
+            if (move.y > 0)
+            {
+                upDirection = true;
+            }
+            else if (move.y < 0)
+            {
+                upDirection = false;
+            }
+        }
+
+        if (isTakingDamage || isAttackingMelee) return;
+        if (move == Vector2.zero) AnimationUpdate(0);
+        else AnimationUpdate(4);
     }
 
     //Animation Update function
-    void ChangeAnmationState(string newState)
+    void ChangeAnimationState(string newState)
     {
         if (newState == currentState) return;
 
@@ -130,9 +177,13 @@ public class FoxT_Controller : MonoBehaviour
             healthPoint = 0;
             Die();
         }
-        else 
+        else
         {
             healthPoint -= damage;
+
+            //Playanimation
+            AnimationUpdate(2);
+            StartCoroutine(AnimationDamageDelay());
         }
         //Update HUD
     }
@@ -147,8 +198,30 @@ public class FoxT_Controller : MonoBehaviour
 
     private IEnumerator DieAnimationDelay()
     {
+        ChangeAnimationState(state[8]);
         yield return new WaitForSeconds(dieAnimationDelay);
         //Changer de scene
+    }
+
+    //Manage Animation
+    private void AnimationUpdate(int index)
+    {
+        if (/*lastDirection.y > 0 || lastDirection.y == 0 && */upDirection)
+        {
+
+            ChangeAnimationState(state[index]);
+        }
+        else
+        {
+            ChangeAnimationState(state[index + 1]);
+        }
+    }
+
+    private IEnumerator AnimationDamageDelay()
+    {
+        isTakingDamage = true;
+        yield return new WaitForSeconds(0.4f);
+        isTakingDamage = false;
     }
 
     //Mod in Game
