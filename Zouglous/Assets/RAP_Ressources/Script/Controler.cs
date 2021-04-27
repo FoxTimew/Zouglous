@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class Controler : MonoBehaviour
 {
-    public float vitesse = 1f;
+    public float vitesse = 5f;
 
     float dashingTimeElapsed;
 

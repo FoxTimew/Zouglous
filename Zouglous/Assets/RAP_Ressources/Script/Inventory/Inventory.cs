@@ -1,34 +1,48 @@
-﻿using System.Collections;
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
-public class Inventory : MonoBehaviour
+
+public class Inventory 
 {
-    //   public bool []IsFull;  //ancienne version
-
-    //    public GameObject[] Slots; 
-
-   GameObject inventoryBacground;
-
-    public int[] Slot;
-
-    public Text Number;
-
-
-    private void Start()
+    private List<Item> ItemList;
+    public event EventHandler OnItemListChanged;
+    public Inventory()
     {
-        inventoryBacground = transform.GetChild(0).gameObject;
-        Slot = new int[inventoryBacground.transform.childCount];
+        ItemList = new List<Item>();
+   /*     AddItem(new Item { itemType = Item.ItemType.Fruit, amout = 1 });
+        AddItem(new Item { itemType = Item.ItemType.Annana, amout = 1 });
+        AddItem(new Item { itemType = Item.ItemType.Tomate, amout = 1 });
+     */   Debug.Log(ItemList.Count);
     }
 
-    void Update()
+    public void AddItem(Item item)
     {
-
+        if (item.IsStackable()) 
+        {
+            bool itemAlreadyInInventory = false;
+            foreach (Item inventoryItem in ItemList)
+            {
+                if(inventoryItem.itemType == item.itemType)
+                {
+                    inventoryItem.amout += item.amout;
+                    itemAlreadyInInventory = true;
+                }
+            }
+            if(!itemAlreadyInInventory)
+            {
+                ItemList.Add(item);
+            }
+        }
+        else
+        {
+          ItemList.Add(item);
+        }
+        OnItemListChanged?.Invoke(this, EventArgs.Empty);
     }
 
-public void UpdateTxt (int Slotnb,string Number )
+    public List<Item> GetItemsList()
     {
-        inventoryBacground.transform.GetChild(Slotnb).GetChild(1).GetComponent<Text>().text = Number;
+        return ItemList;
     }
-
 }

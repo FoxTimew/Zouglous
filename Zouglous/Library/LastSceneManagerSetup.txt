@@ -1,5 +1,5 @@
 sceneSetups:
-- path: Assets/GRL_Ressources/GRL_Scene/Test_Scene.unity
+- path: Assets/RAP_Ressources/Scene/Trap.unity
   isLoaded: 1
   isActive: 1
   isSubScene: 0
