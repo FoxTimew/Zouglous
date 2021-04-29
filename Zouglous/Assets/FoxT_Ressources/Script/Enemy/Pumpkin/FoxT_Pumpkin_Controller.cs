@@ -1,12 +1,14 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using MathExtension;
+using Pathfinding;
+using System.Collections;
 using UnityEngine;
-using MathExtension;
 
 public class FoxT_Pumpkin_Controller : MonoBehaviour
 {
     private Rigidbody2D rb;
     private Vector2 lastDirection;
+    [SerializeField]
+    private FoxT_Pumpkin_Attack pumpkinAttack;
 
     [SerializeField]
     private FoxT_Pumpkin_Stat stat;
@@ -25,13 +27,18 @@ public class FoxT_Pumpkin_Controller : MonoBehaviour
     private bool isTakingDamage;
 
     [SerializeField]
-    private bool PCdetected;
-
+    private float attackWindUpDelay, endAnimation, attackCoolDownDelay;
+    private bool isAttacking;
     [SerializeField]
-    private Transform[] wayPointsPatrol;
+    private float startAttackDistance;
+
+    public bool PCdetected;
+
+    public Transform[] wayPointsPatrol;
     private int wayPointsIndex;
     private float minDistance = 0.1f;
-    private bool upDirection, rightDirection;
+    //[HideInInspector]
+    public bool upDirection, rightDirection;
     [SerializeField]
     private float waintingTime;
     private bool isWaiting;
@@ -42,9 +49,31 @@ public class FoxT_Pumpkin_Controller : MonoBehaviour
     private Animator anim;
     [SerializeField]
     private float dieAnimationDelay;
+    private Seeker seeker;
+    [SerializeField]
+    private Respawn respawn;
+
+	private void OnCollisionEnter2D(Collision2D collision)
+	{
+        if (collision.gameObject.tag == "Player")
+        {
+            rb.velocity = Vector2.zero;
+            rb.isKinematic = true;
+        }
+	}
+
+	private void OnCollisionExit2D(Collision2D collision)
+	{
+        if (collision.gameObject.tag == "Player")
+        {
+            rb.isKinematic = false;
+        }
+	}
 
 	private void Awake()
 	{
+        respawn.enemy = gameObject;
+        seeker = GetComponent<Seeker>();
         rb = this.GetComponent<Rigidbody2D>();
         anim = this.GetComponent<Animator>();
 	}
@@ -52,29 +81,38 @@ public class FoxT_Pumpkin_Controller : MonoBehaviour
 	// Start is called before the first frame update
 	void Start()
     {
+        //Stat Attribution
+        speed = stat.speed;
         healthPoint = stat.maxHealth;
 		damage = stat.damage;
-        StartCoroutine(StartAttack());
+        //check quel ennemi
+        if (pumpkinAttack != null) startAttackDistance = pumpkinAttack.attackRadius;
     }
 
     // Update is called once per frame
     void Update()
     {
+        if (isAttacking)
+        {
+            GetComponent<EnemyPathAI>().enabled = false;
+            return;
+        }
         //Do his patrol
-        if (!PCdetected)
+        if (PCdetected)
         {
-            Patrol();
+            GetComponent<EnemyPathAI>().enabled = true;
+
+            //Attack Test
+            if (Vector2.Distance(transform.position, pcTransform.position) < startAttackDistance)
+            {
+                StartCoroutine(StartAttack());
+            }
         }
-        //Attack Player
-        else
-        {
-            StopAllCoroutines();
-            //suit Pathfounding
-            rb.velocity = Vector3.MoveTowards(this.transform.position, pcTransform.position, 10) * speed * Time.deltaTime;
-        }
+        
+        Patrol();
     }
 
-    private void Patrol()
+	private void Patrol()
     {
         if (isWaiting) return;
         if (!Mathe.IsBetweenRange(-Vector3.Distance(this.transform.position, wayPointsPatrol[wayPointsIndex].position), Vector3.Distance(this.transform.position, wayPointsPatrol[wayPointsIndex].position), minDistance))
@@ -84,61 +122,47 @@ public class FoxT_Pumpkin_Controller : MonoBehaviour
         }
         else
         {
-            rb.velocity = new Vector2(wayPointsPatrol[wayPointsIndex].position.x - this.transform.position.x, wayPointsPatrol[wayPointsIndex].position.y - this.transform.position.y).normalized * speed * Time.deltaTime;
+            rb.velocity = new Vector2(wayPointsPatrol[wayPointsIndex].position.x - this.transform.position.x, wayPointsPatrol[wayPointsIndex].position.y - this.transform.position.y).normalized * speed * 50 * Time.deltaTime;
             if (rb.velocity != Vector2.zero) LastDirection();
 
         }
 
-        if (isTakingDamage) return;
-        if (rb.velocity == Vector2.zero) Debug.Log("0");
+        if (isTakingDamage || isAttacking) return;
+        if (rb.velocity == Vector2.zero)
+        { }
         else AnimationUpdate(0);
     }
 
     private void LastDirection()
     {
+        bool test = upDirection;
         Vector2 move = rb.velocity;
 
         if (move.x != 0) transform.localScale = new Vector3(-1 * Mathf.Sign(move.x), transform.localScale.y, transform.localScale.z);
 
-        if (move.x > 0)
-        {
-            rightDirection = true;
-            if (move.y > 0)
-            {
-                upDirection = true;
-            }
-            else if (move.y < 0)
-            {
-                upDirection = false;
-            }
-        }
-        else if (move.x < 0)
-        {
-            rightDirection = false;
-            if (move.y > 0)
-            {
-                upDirection = true;
-            }
-            else if (move.y < 0)
-            {
-                upDirection = false;
-            }
-        }
-        else
-        {
-            if (move.y > 0)
-            {
-                upDirection = true;
-            }
-            else if (move.y < 0)
-            {
-                upDirection = false;
-            }
-        }
+        if (move.x > 0) rightDirection = true;
+        else if (move.x < 0) rightDirection = false;
+        if (move.y > 0) upDirection = true;
+        else if (move.y < 0) upDirection = false;
+
+        //if (upDirection != test) Debug.Log(move.y);
         /*if (move.x > 0 && move.x > Mathf.Abs(move.y)) lastDirection = Vector2.right;
         else if (move.x < 0 && move.x < Mathf.Abs(move.y) * -1) lastDirection = Vector2.left;
         else if (move.y > 0 && move.y > Mathf.Abs(move.x)) lastDirection = Vector2.up;
         else if (move.y < 0 && move.y < Mathf.Abs(move.x) * -1) lastDirection = Vector2.down;*/
+    }
+
+    public void Move(Vector2 direction)
+    {
+        rb.velocity = direction * speed * Time.fixedDeltaTime * 50;
+
+        if (rb.velocity == Vector2.zero) { }
+        else
+        {
+            LastDirection();
+            if (isAttacking || isTakingDamage) return;
+            AnimationUpdate(0);
+        }
     }
 
     private IEnumerator Waiting()
@@ -169,19 +193,23 @@ public class FoxT_Pumpkin_Controller : MonoBehaviour
 
     private IEnumerator StartAttack()
     {
-        yield return new WaitForSeconds(5);
-        Attack();
-        StartCoroutine(StartAttack());
-    }
-
-    private void Attack()
-    {
-        //jouer animation
-        RaycastHit2D hit = Physics2D.BoxCast(this.transform.position + Mathe.Vector2To3(lastDirection), Vector2.one / 2, 45f, lastDirection, pcLayer);
-
-        if (hit.collider != null)
+        if (!isAttacking)
         {
-            //hit.collider.GetComponent<FoxT_Controller>().TakeDamage(damage);
+            isAttacking = true;
+            AnimationUpdate(4);
+            rb.velocity = Vector3.zero;
+            yield return new WaitForSeconds(attackWindUpDelay);
+
+            //Check qui est l'ennemi
+            if (pumpkinAttack != null) pumpkinAttack.Attack(damage);
+            // else if () else
+
+            yield return new WaitForSeconds(endAnimation);
+            Debug.Log("Passe");
+            AnimationUpdate(0 /*A changer avec l'IDLE*/);
+
+            yield return new WaitForSeconds(attackCoolDownDelay);
+            isAttacking = false;
         }
     }
 
@@ -204,11 +232,14 @@ public class FoxT_Pumpkin_Controller : MonoBehaviour
 
     private IEnumerator Die()
     {
-        StopAllCoroutines();
+        AnimationUpdate(6);
         rb.velocity = Vector2.zero;
         //Jouer Animation
         yield return new WaitForSeconds(dieAnimationDelay);
-        Destroy(this.gameObject);
+        //loot
+        Respawn();
+        respawn.RespawnEvent();
+        gameObject.SetActive(false);
     }
 
     //Manage Animation
@@ -223,5 +254,26 @@ public class FoxT_Pumpkin_Controller : MonoBehaviour
         {
             ChangeAnimationState(state[index + 1]);
         }
+    }
+
+    public void Respawn()
+    {
+        StopAllCoroutines();
+        //remettre les pendules à l'heure
+        GetComponent<EnemyPathAI>().enabled = false;
+
+        speed = stat.speed;
+        damage = stat.damage;
+        healthPoint = stat.maxHealth;
+        PCdetected = false;
+
+        lastDirection = Vector2.zero;
+        isWaiting = false;
+        upDirection = false;
+        rightDirection = false;
+        isAttacking = false;
+        isTakingDamage = false;
+
+        transform.position = wayPointsPatrol[0].position;
     }
 }

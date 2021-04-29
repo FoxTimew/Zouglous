@@ -18,6 +18,8 @@ public class FieldOfView : MonoBehaviour
     [HideInInspector]
     public bool PlayerIsVisible;
 
+    private Vector3 direction;
+
 	private void Awake()
 	{
         playableCharacter = GameObject.Find("Playable_Character").transform;
@@ -50,14 +52,21 @@ public class FieldOfView : MonoBehaviour
             return;
         }
 
-        Vector3 dirToTarget = (playableCharacter.position - transform.position).normalized;
-        if (Vector3.Angle(transform.up, dirToTarget) < viewAngle / 2)
+        if (GetComponent<FoxT_Pumpkin_Controller>().upDirection) direction.y = 1;
+        else direction.y = -1;
+        if (GetComponent<FoxT_Pumpkin_Controller>().rightDirection) direction.x = 1;
+        else direction.x = -1;
+
+            Vector3 dirToTarget = (playableCharacter.position - transform.position).normalized;
+        if (Vector3.Angle(direction, dirToTarget) < viewAngle / 2)
         {
             float dstToTarget = Vector3.Distance(transform.position, playableCharacter.position);
 
             if (!Physics2D.Raycast(transform.position, dirToTarget, dstToTarget, obstacleMask))
             {
                 PlayerIsVisible = true;
+                GetComponent<FoxT_Pumpkin_Controller>().PCdetected = true;
+                GetComponent<EnemyPathAI>().ChangeTarget();
             }
             else PlayerIsVisible = false;
         }
